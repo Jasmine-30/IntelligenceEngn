@@ -1,0 +1,46 @@
+name: GitHub Actions Workflow
+run-name: ${{ github.actor }} workflow with shared Azure login
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  data-ingestion:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Azure CLI
+      run: |
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        az extension add --name ml -y
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Create AzureML Data Asset
+      env:
+        DATA_FILE: "data/HAR.csv"  # Path to your dataset in the repository
+        DATA_ASSET_NAME: "HAR-dataset"  # Desired name of your data asset
+      run: |
+        az ml data create \
+          --name $DATA_ASSET_NAME \
+          --path $DATA_FILE \
+          --type uri_file \
+          --workspace-name Project-WS \
+          --resource-group Project-G \
+          --description "Dataset for preprocessing" \
+
+    - name: Get Data Asset URI
+      id: get-data-uri
+      run: |
+        DATA_ASSET_URI=$(az ml data show --name "HAR-dataset" --version 1 --workspace-name Project-WS --resource-group Project-G --query "uri")
+        echo "DATA_ASSET_URI=$DATA_ASSET_URI" >> $GITHUB_ENV
+
+    - name: Debug URI
+      run: echo "Data Asset URI - ${{ env.DATA_ASSET_URI }}"
